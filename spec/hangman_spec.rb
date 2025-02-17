@@ -3,6 +3,7 @@ require 'hangman'
 
 RSpec.describe Hangman do
   before(:each) do
+    File.delete(Hangman::SAVE_FILE_PATH) if File.exist?(Hangman::SAVE_FILE_PATH)
     @game = Hangman.new
   end
 
@@ -40,5 +41,21 @@ RSpec.describe Hangman do
     @game.guess('e')
     expect(@game.game_over?).to be true
     expect(@game.word_teaser).to eq('a p p l e')
+  end
+
+  it 'saves the game' do
+    @game.send(:save_game)
+    expect(File.exist?('saves/saved_game.yaml')).to be true
+  end
+
+  it 'loads a saved game' do
+    @game.word = 'apple'
+    @game.word_teaser = 'a _ _ _ _'
+    @game.lives = 5
+    @game.send(:save_game)
+    @game.send(:load_game)
+    expect(@game.word).to eq('apple')
+    expect(@game.word_teaser).to eq('a _ _ _ _')
+    expect(@game.lives).to eq(5)
   end
 end

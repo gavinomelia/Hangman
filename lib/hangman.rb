@@ -1,29 +1,55 @@
+require 'YAML'
+
 class Hangman
+  SAVE_FILE_PATH = 'saves/saved_game.yaml'.freeze
+  DICTIONARY_FILE_PATH = 'google-10000-english-no-swears.txt'.freeze
+
   attr_accessor :word, :word_teaser, :lives
 
   def initialize
-    dictionary = File.readlines('google-10000-english-no-swears.txt')
-    @word = dictionary.sample.chomp
-    @lives = 6
-    @word_teaser = ''
-    @word.size.times do
-      @word_teaser += '_ '
+    if File.exist?(SAVE_FILE_PATH)
+      load_game
+    else
+      start_new_game
     end
   end
 
   def play
-    puts 'Welcome to Hangman!'
-    puts 'Try to guess the word I\'m thinking of.'
-    puts @word_teaser
+    display_welcome_message
     while @lives.positive?
-      puts 'Guess a letter: '
-      guessed_letter = gets.chomp
-      guess(guessed_letter)
-      puts "Lives left: #{@lives}"
-      puts @word_teaser
-      draw_stick
+      guessed_letter = prompt_for_guess
+      handle_guess(guessed_letter)
+      display_game_status
       break if game_over?
     end
+  end
+
+  def display_welcome_message
+    puts 'Welcome to Hangman!'
+    puts 'To save the game at any point, type "save".'
+    puts 'Try to guess the word I\'m thinking of.'
+    puts @word_teaser
+  end
+
+  def prompt_for_guess
+    puts 'Guess a letter: '
+    gets.chomp
+  end
+
+  def handle_guess(guessed_letter)
+    if guessed_letter == 'save'
+      save_game
+      puts 'Game saved. Exiting...'
+      exit
+    else
+      guess(guessed_letter)
+    end
+  end
+
+  def display_game_status
+    puts "Lives left: #{@lives}"
+    puts @word_teaser
+    draw_stick
   end
 
   def guess(letter)
@@ -37,17 +63,32 @@ class Hangman
   end
 
   def game_over?
-    if @lives <= 0
-      puts "Sorry, you lost! The word was: #{@word}"
-      return true
-    elsif @word.delete(' ') == @word_teaser.delete(' ')
-      puts 'Congratulations! You won!'
-      return true
-    end
-    false
+    lost? || won?
   end
 
   private
+
+  def start_new_game
+    dictionary = File.readlines(DICTIONARY_FILE_PATH)
+    @word = dictionary.sample.chomp
+    @lives = 6
+    @word_teaser = '_ ' * @word.size
+  end
+
+  def load_game
+    saved_game = File.open(SAVE_FILE_PATH, 'r') { |file| file.read }
+    loaded_game = YAML.safe_load(saved_game, permitted_classes: [Hangman])
+    @word = loaded_game.word
+    @word_teaser = loaded_game.word_teaser
+    @lives = loaded_game.lives
+  end
+
+  def save_game
+    Dir.mkdir('saves') unless Dir.exist?('saves')
+    File.open(SAVE_FILE_PATH, 'w') do |file|
+      file.puts YAML.dump(self)
+    end
+  end
 
   def draw_stick
     stick_figure = [
@@ -60,6 +101,11 @@ class Hangman
       ' |__________'
     ]
 
+    update_stick_figure(stick_figure)
+    puts stick_figure
+  end
+
+  def update_stick_figure(stick_figure)
     case @lives
     when 6
       stick_figure[2] = ' |'
@@ -82,15 +128,29 @@ class Hangman
     when 0
       # stick_figure remains unchanged
     end
-
-    puts stick_figure
   end
 
   def update_teaser(last_guess)
-    new_teaser = @word_teaser.split
-    new_teaser.each_with_index do |letter, index|
-      new_teaser[index] = last_guess if @word[index] == last_guess
+    @word_teaser = @word_teaser.split.each_with_index.map do |letter, index|
+      @word[index] == last_guess ? last_guess : letter
+    end.join(' ')
+  end
+
+  def lost?
+    if @lives <= 0
+      puts "Sorry, you lost! The word was: #{@word}"
+      true
+    else
+      false
     end
-    @word_teaser = new_teaser.join(' ')
+  end
+
+  def won?
+    if @word.delete(' ') == @word_teaser.delete(' ')
+      puts 'Congratulations! You won!'
+      true
+    else
+      false
+    end
   end
 end
